@@ -1,4 +1,6 @@
+use sqlx::{Connection, PgConnection};
 use std::net::TcpListener;
+use zero2prod::configuration::get_configuration;
 use zero2prod::startup::run;
 
 /// Spin up an instance of the application and return its address with randomly assigned port
@@ -26,8 +28,15 @@ async fn health_check_works() {
 }
 
 #[actix_rt::test]
-async fn subscribe_success_case() {
+async fn subscribe_returns_a_200_for_valid_form_data() {
     let app_address = spawn_app();
+    let configuration = get_configuration().expect("Failed to read configuration");
+    let connection_string = configuration.database.connection_string();
+    // The `Connection` trait MUST be in scope for us to invoke
+    // `PgConnection::connect` - it is not an inherent method of the struct!
+    let mut connection = PgConnection::connect(&connection_string)
+        .await
+        .expect("Failed to connect to Postgres.");
     let client = reqwest::Client::new();
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
@@ -40,6 +49,14 @@ async fn subscribe_success_case() {
         .expect("Failed to execute request.");
 
     assert_eq!(200, response.status().as_u16());
+
+    let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
+        .fetch_one(&mut connection)
+        .await
+        .expect("Failed to fetch saved subscription.");
+
+    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
+    assert_eq!(saved.name, "le guin");
 }
 
 #[actix_rt::test]
@@ -49,7 +66,7 @@ async fn subscribe_fail_missing_data() {
     let test_cases = vec![
         ("name=le%20guin", "missing the email"),
         ("email=ursula_le_guin%40gmail.com", "missing the name"),
-        ("", "missing both name and email")
+        ("", "missing both name and email"),
     ];
 
     for (invalid_body, error_message) in test_cases {
@@ -61,8 +78,12 @@ async fn subscribe_fail_missing_data() {
             .await
             .expect("Failed to execute request.");
 
-        assert_eq!(400, response.status().as_u16(), "The API was expected to fail with Error Code\
+        assert_eq!(
+            400,
+            response.status().as_u16(),
+            "The API was expected to fail with Error Code\
          400 'Bad Request' but it didn't {}.",
-                   error_message);
+            error_message
+        );
     }
 }
