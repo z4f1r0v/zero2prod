@@ -1,5 +1,6 @@
 use validator::validate_email;
 
+#[derive(Debug)]
 pub struct SubscriberEmail(String);
 
 impl SubscriberEmail {
@@ -25,11 +26,6 @@ mod tests {
     use fake::Fake;
     use crate::domain::subscriber_email::SubscriberEmail;
 
-    #[test]
-    fn valid_emails_are_parsed_successfully() {
-        let email = SafeEmail().fake();
-        claim::assert_ok!(SubscriberEmail::parse(email));
-    }
     #[derive(Debug, Clone)]
     struct ValidEmailFixture(pub String);
 

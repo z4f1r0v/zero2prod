@@ -1,10 +1,12 @@
 use secrecy::{ExposeSecret, Secret};
 use std::convert::{TryFrom, TryInto};
+use crate::domain::SubscriberEmail;
 
 #[derive(serde::Deserialize)]
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
+    pub email_client: EmailSettings
 }
 
 #[derive(serde::Deserialize)]
@@ -20,6 +22,18 @@ pub struct DatabaseSettings {
     pub port: u16,
     pub host: String,
     pub database_name: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct EmailSettings {
+    pub base_url: String,
+    pub sender_email: String,
+}
+
+impl EmailSettings {
+    pub fn sender(&self) -> Result<SubscriberEmail, String> {
+        SubscriberEmail::parse(self.sender_email.clone())
+    }
 }
 
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {
